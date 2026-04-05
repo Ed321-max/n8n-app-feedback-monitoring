@@ -1,0 +1,1145 @@
+{
+  "name": "App Store Review Analysis Workflow",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "e5faa144-39e1-4fdc-8182-ee8956bf59e4",
+      "name": "Merge Results",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2.1,
+      "position": [
+        576,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "fce3fdad-8801-48fd-8432-ae39a40f2aff",
+              "name": "source",
+              "value": "Google Play",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "d6be6f05-c153-4161-8189-69d4e88600eb",
+      "name": "Set Source: Google Play",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1600,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=YOUR_API_ENDPOINT",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "appId",
+              "value": "com.yourcompany.yourapp"
+            },
+            {
+              "name": "languages",
+              "value": "={{ $json.googlePlayLanguages }}"
+            },
+            {
+              "name": "num",
+              "value": "2000"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "YOUR_API_KEY"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 100000
+        }
+      },
+      "id": "5fd574df-803b-4bf0-8bb7-c69df80eef74",
+      "name": "Fetch Google Play Reviews",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -512,
+        144
+      ],
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "maxTries": 3
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "251a2996-d9ea-464b-bf9b-72dcbf5a5995",
+              "name": "source",
+              "value": "App Store",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "ec3096cc-c5b7-435a-b55e-a47dca631fe9",
+      "name": "Set Source: App Store",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1616,
+        816
+      ]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "appStoreCountries",
+        "options": {}
+      },
+      "id": "393b2981-c04f-4b63-aaa6-e51279822d18",
+      "name": "Split App Store Country List",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        -1312,
+        816
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://itunes.apple.com/{{$json.appStoreCountries}}/rss/customerreviews/page=1/id=YOUR_APPSTORE_APP_ID/sortby=mostrecent/xml",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "31d719d2-d413-4880-8cf6-0c217cf73ca5",
+      "name": "Fetch App Store RSS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -640,
+        1024
+      ],
+      "retryOnFail": true,
+      "waitBetweenTries": 3000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "aef6abe3-69e3-4bcf-bedf-b9d592d20ed2",
+      "name": "Parse XML",
+      "type": "n8n-nodes-base.xml",
+      "typeVersion": 1,
+      "position": [
+        0,
+        800
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse App Store RSS XML (converted to JSON)\nconst items = [];\nconst allInputs = $input.all();\n\nfor (const input of allInputs) {\n  try {\n    const xmlData = input.json;\n\n    // Skip empty data or error responses\n    if (!xmlData || xmlData.error) {\n      continue;\n    }\n\n    // Handle XML-converted JSON structure\n    let entries = [];\n\n    if (xmlData.feed && xmlData.feed.entry) {\n      entries = Array.isArray(xmlData.feed.entry)\n        ? xmlData.feed.entry\n        : [xmlData.feed.entry];\n    } else if (xmlData.entry) {\n      entries = Array.isArray(xmlData.entry)\n        ? xmlData.entry\n        : [xmlData.entry];\n    }\n\n    if (entries.length === 0) {\n      continue;\n    }\n\n    // Extract country code from feed URL\n    let country = 'unknown';\n    try {\n      const feedId = xmlData.feed?.id || '';\n      const feedIdStr = typeof feedId === 'string' ? feedId : (feedId['#text'] || feedId._ || String(feedId));\n      const match = feedIdStr.match(/itunes\\.apple\\.com\\/([a-z]{2})\\/i);\n      if (match) {\n        country = match[1].toUpperCase();\n      }\n    } catch (e) {\n      country = 'unknown';\n    }\n\n    for (const entry of entries) {\n      try {\n        let reviewId = '';\n        if (entry.id) {\n          if (typeof entry.id === 'string') {\n            reviewId = entry.id;\n          } else if (Array.isArray(entry.id)) {\n            reviewId = entry.id[0]?.['#text'] || entry.id[0]?._ || entry.id[0] || '';\n          } else {\n            reviewId = entry.id['#text'] || entry.id._ || entry.id.text || String(entry.id);\n          }\n        }\n\n        let userName = 'Anonymous';\n        if (entry.author) {\n          if (typeof entry.author === 'string') {\n            userName = entry.author;\n          } else if (entry.author.name) {\n            const name = entry.author.name;\n            userName = typeof name === 'string'\n              ? name\n              : (name['#text'] || name._ || name.text || 'Anonymous');\n          } else if (Array.isArray(entry.author)) {\n            const authorObj = entry.author[0];\n            if (authorObj && authorObj.name) {\n              const name = authorObj.name;\n              userName = typeof name === 'string'\n                ? name\n                : (Array.isArray(name) ? name[0] : (name['#text'] || name._ || 'Anonymous'));\n            }\n          }\n        }\n\n        let rating = 0;\n        if (entry['im:rating']) {\n          const ratingVal = entry['im:rating'];\n          if (typeof ratingVal === 'string') {\n            rating = parseInt(ratingVal, 10) || 0;\n          } else if (Array.isArray(ratingVal)) {\n            rating = parseInt(ratingVal[0], 10) || 0;\n          } else {\n            rating = parseInt(ratingVal['#text'] || ratingVal._ || ratingVal.text || '0', 10) || 0;\n          }\n        }\n\n        let content = '';\n        if (entry.content) {\n          if (typeof entry.content === 'string') {\n            content = entry.content;\n          } else if (Array.isArray(entry.content)) {\n            for (const c of entry.content) {\n              if (typeof c === 'string' && c.length > content.length) {\n                content = c;\n              } else if (c['#text'] && c['#text'].length > content.length) {\n                content = c['#text'];\n              } else if (c._ && c._.length > content.length) {\n                content = c._;\n              }\n            }\n          } else {\n            content = entry.content['#text'] || entry.content._ || entry.content.text || '';\n          }\n        }\n\n        let date = new Date().toISOString();\n        const dateField = entry.updated || entry.published;\n        if (dateField) {\n          if (typeof dateField === 'string') {\n            date = dateField;\n          } else if (Array.isArray(dateField)) {\n            date = dateField[0]?.['#text'] || dateField[0]?._ || dateField[0] || date;\n          } else {\n            date = dateField['#text'] || dateField._ || dateField.text || date;\n          }\n        }\n\n        let appVersion = '';\n        if (entry['im:version']) {\n          const versionVal = entry['im:version'];\n          if (typeof versionVal === 'string') {\n            appVersion = versionVal;\n          } else if (Array.isArray(versionVal)) {\n            appVersion = versionVal[0]?.['#text'] || versionVal[0]?._ || String(versionVal[0] || '');\n          } else {\n            appVersion = versionVal['#text'] || versionVal._ || versionVal.text || '';\n          }\n        }\n        if (!appVersion && entry.version) {\n          const versionVal = entry.version;\n          appVersion = typeof versionVal === 'string'\n            ? versionVal\n            : (versionVal['#text'] || versionVal._ || '');\n        }\n\n        if (!reviewId || reviewId === '[object Object]') {\n          reviewId = `appstore_${country}_${userName}_${new Date(date).getTime()}`;\n        }\n\n        if (content && content.trim().length > 0) {\n          items.push({\n            json: {\n              reviewId: String(reviewId),\n              userName: String(userName),\n              rating: rating,\n              content: String(content).trim(),\n              date: date,\n              source: 'App Store',\n              country: country,\n              appVersion: String(appVersion),\n              platform: 'iOS'\n            }\n          });\n        }\n      } catch (entryError) {\n        console.error('Failed to parse review:', entryError.message);\n        continue;\n      }\n    }\n  } catch (error) {\n    console.error('Failed to parse country data:', error.message);\n    continue;\n  }\n}\n\n// Deduplicate by reviewId\nconst seen = new Set();\nconst uniqueItems = items.filter(item => {\n  const key = item.json.reviewId;\n  if (seen.has(key)) {\n    return false;\n  }\n  seen.add(key);\n  return true;\n});\n\nreturn uniqueItems.length > 0 ? uniqueItems : [{ json: { noData: true } }];"
+      },
+      "id": "9adf1e82-f981-41c3-9830-803af81820d7",
+      "name": "Process App Store Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        368,
+        800
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "ab0e5530-5c89-4878-a987-6967d9b4c93c",
+              "leftValue": "{{ $json.noData }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notExists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "7daf8ac7-0bd3-4ce2-96e5-c48d22b7c045",
+      "name": "Filter Empty Data",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1168,
+        368
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse merged data with language, countryType, locale, region fields\n// HTML cleaning functionality added\n\nconst items = [];\n\nconst DEFAULT_LANGUAGE = 'unknown';\nconst DEFAULT_COUNTRY_TYPE = 'unknown';\nconst DEFAULT_LOCALE = 'unknown';\nconst DEFAULT_REGION = 'Unknown';\nconst DEFAULT_COUNTRY = 'Unknown';\n\nconst stripHtml = (html) => {\n  if (!html || typeof html !== 'string') return html;\n  \n  let text = html.replace(/<[^>]*>/g, '');\n  text = text.replace(/&nbsp;/g, ' ');\n  text = text.replace(/&amp;/g, '&');\n  text = text.replace(/&lt;/g, '<');\n  text = text.replace(/&gt;/g, '>');\n  text = text.replace(/&quot;/g, '\"');\n  text = text.replace(/&#39;/g, \"'\");\n  text = text.replace(/&apos;/g, \"'\");\n  text = text.replace(/&#(\\d+);/g, (match, dec) => String.fromCharCode(dec));\n  text = text.replace(/&[a-zA-Z]+;/g, '');\n  text = text.replace(/\\s+/g, ' ').trim();\n  \n  return text;\n};\n\nfor (const input of $input.all()) {\n  const data = input.json;\n\n  let aiResult = {};\n\n  if (data.message?.content) {\n    try {\n      aiResult = typeof data.message.content === 'object'\n        ? data.message.content\n        : JSON.parse(data.message.content);\n    } catch (e) {\n      console.error('Failed to parse AI result JSON:', e.message);\n      aiResult = {};\n    }\n  } else if (data.translation || data.sentiment) {\n    aiResult = {\n      translation: data.translation,\n      sentiment: data.sentiment,\n      intent: data.intent,\n      feature: data.feature,\n      summary: data.summary,\n      keywords: data.keywords,\n      priority: data.priority\n    };\n  }\n\n  const reviewId = data.reviewId || `temp_${Date.now()}`;\n  const userName = data.userName || 'Anonymous';\n  const rating = data.rating ?? 0;\n  const content = stripHtml(data.content || '');\n  const date = data.date || new Date().toISOString();\n  const source = data.source || 'Unknown';\n  const appVersion = data.appVersion || data.originalData?.appVersion || 'Unknown';\n  const platform = data.platform || data.originalData?.platform || 'Unknown';\n  const thumbsUp = data.thumbsUp || data.originalData?.thumbsUp || 0;\n\n  const country = data.country || data.originalData?.country || DEFAULT_COUNTRY;\n  const countryType = data.countryType || data.originalData?.countryType || DEFAULT_COUNTRY_TYPE;\n  const language = data.language || data.originalData?.language || DEFAULT_LANGUAGE;\n  const locale = data.locale || data.originalData?.locale || DEFAULT_LOCALE;\n  const region = data.region || data.originalData?.region || DEFAULT_REGION;\n\n  if (!aiResult || Object.keys(aiResult).length === 0) {\n    aiResult = {\n      translation: content || 'Parsing failed',\n      sentiment: rating >= 4 ? 'Positive' : (rating <= 2 ? 'Negative' : 'Neutral'),\n      intent: 'Other',\n      feature: 'Other',\n      summary: 'Parsing failed',\n      keywords: [],\n      priority: rating <= 2 ? 'High' : 'Medium'\n    };\n  }\n\n  const sentiment = aiResult.sentiment || 'Neutral';\n  const priority = aiResult.priority || 'Medium';\n  const cleanTranslation = stripHtml(aiResult.translation || content);\n  const cleanSummary = stripHtml(aiResult.summary || 'Not analyzed');\n\n  items.push({\n    json: {\n      reviewId: reviewId,\n      userName: userName,\n      rating: rating,\n      content: content,\n      date: date,\n      source: source,\n      appVersion: appVersion,\n      platform: platform,\n      thumbsUp: thumbsUp,\n      country: country,\n      countryType: countryType,\n      language: language,\n      locale: locale,\n      region: region,\n      title: String(cleanSummary).substring(0, 50),\n      translation: cleanTranslation,\n      sentiment: sentiment,\n      intent: aiResult.intent || 'Other',\n      feature: aiResult.feature || 'Other',\n      keywords: Array.isArray(aiResult.keywords) ? aiResult.keywords : [],\n      priority: priority,\n      needsAlert: (rating <= 2 || sentiment === 'Urgent' || priority === 'High')\n    }\n  });\n}\n\nreturn items.length > 0 ? items : [{ json: { error: 'No data', needsAlert: false } }];"
+      },
+      "id": "b7964e33-2370-453a-b2ca-64b4d2fcee7e",
+      "name": "Parse AI Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2224,
+        368
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Save original review data for later merging\n// Handle field differences between Google Play and App Store\n\nconst items = [];\nconst allInputs = $input.all();\n\nconst DEFAULT_LANGUAGE = 'unknown';\nconst DEFAULT_COUNTRY_TYPE = 'unknown';\nconst DEFAULT_LOCALE = 'unknown';\nconst DEFAULT_REGION = 'Unknown';\nconst DEFAULT_COUNTRY = 'Unknown';\n\nconst COUNTRY_TO_LANG = {\n  'JP': 'ja', 'KR': 'ko', 'CN': 'zh-CN', 'TW': 'zh-TW', 'HK': 'zh-TW', 'MO': 'zh-TW',\n  'TH': 'th', 'VN': 'vi', 'ID': 'id', 'MY': 'ms', 'SG': 'en', 'PH': 'en',\n  'KH': 'km', 'LA': 'lo', 'MM': 'my', 'BN': 'ms',\n  'IN': 'hi', 'BD': 'bn', 'PK': 'ur', 'LK': 'si', 'NP': 'ne',\n  'IL': 'he', 'IR': 'fa', 'TR': 'tr',\n  'SA': 'ar', 'AE': 'ar', 'EG': 'ar', 'IQ': 'ar', 'JO': 'ar', 'KW': 'ar',\n  'QA': 'ar', 'BH': 'ar', 'OM': 'ar', 'LB': 'ar', 'YE': 'ar', 'SY': 'ar', 'PS': 'ar',\n  'DE': 'de', 'AT': 'de', 'CH': 'de',\n  'FR': 'fr', 'BE': 'fr',\n  'IT': 'it', 'ES': 'es', 'PT': 'pt', 'NL': 'nl',\n  'PL': 'pl', 'CZ': 'cs', 'HU': 'hu', 'SK': 'sk',\n  'RU': 'ru', 'UA': 'uk', 'BY': 'be',\n  'SE': 'sv', 'NO': 'no', 'DK': 'da', 'FI': 'fi', 'IS': 'is',\n  'GR': 'el', 'BG': 'bg', 'RO': 'ro',\n  'HR': 'hr', 'RS': 'sr', 'SI': 'sl', 'BA': 'bs', 'MK': 'mk', 'AL': 'sq', 'ME': 'sr',\n  'LT': 'lt', 'LV': 'lv', 'EE': 'et',\n  'IE': 'en', 'GB': 'en', 'MT': 'mt',\n  'US': 'en', 'CA': 'en',\n  'MX': 'es', 'AR': 'es', 'CL': 'es', 'CO': 'es', 'PE': 'es', 'VE': 'es',\n  'EC': 'es', 'GT': 'es', 'CU': 'es', 'DO': 'es', 'HN': 'es', 'SV': 'es',\n  'NI': 'es', 'CR': 'es', 'PA': 'es', 'UY': 'es', 'PY': 'es', 'BO': 'es',\n  'BR': 'pt',\n  'AU': 'en', 'NZ': 'en',\n  'ZA': 'en', 'NG': 'en', 'KE': 'sw', 'TZ': 'sw', 'ET': 'am',\n  'MA': 'ar', 'DZ': 'ar', 'TN': 'ar', 'LY': 'ar', 'SD': 'ar',\n};\n\nconst COUNTRY_TO_REGION = {\n  'JP': 'APAC', 'KR': 'APAC', 'CN': 'APAC', 'TW': 'APAC', 'HK': 'APAC', 'MO': 'APAC',\n  'TH': 'APAC', 'VN': 'APAC', 'ID': 'APAC', 'MY': 'APAC', 'SG': 'APAC', 'PH': 'APAC',\n  'KH': 'APAC', 'LA': 'APAC', 'MM': 'APAC', 'BN': 'APAC', 'MN': 'APAC',\n  'IN': 'APAC', 'BD': 'APAC', 'PK': 'APAC', 'LK': 'APAC', 'NP': 'APAC',\n  'AU': 'APAC', 'NZ': 'APAC',\n  'KZ': 'APAC', 'UZ': 'APAC',\n  'DE': 'EMEA', 'AT': 'EMEA', 'CH': 'EMEA', 'FR': 'EMEA', 'BE': 'EMEA',\n  'IT': 'EMEA', 'ES': 'EMEA', 'PT': 'EMEA', 'NL': 'EMEA',\n  'PL': 'EMEA', 'CZ': 'EMEA', 'HU': 'EMEA', 'SK': 'EMEA',\n  'RU': 'EMEA', 'UA': 'EMEA', 'BY': 'EMEA',\n  'SE': 'EMEA', 'NO': 'EMEA', 'DK': 'EMEA', 'FI': 'EMEA', 'IS': 'EMEA',\n  'GR': 'EMEA', 'BG': 'EMEA', 'RO': 'EMEA',\n  'HR': 'EMEA', 'RS': 'EMEA', 'SI': 'EMEA', 'BA': 'EMEA', 'MK': 'EMEA', 'AL': 'EMEA', 'ME': 'EMEA',\n  'LT': 'EMEA', 'LV': 'EMEA', 'EE': 'EMEA',\n  'IE': 'EMEA', 'GB': 'EMEA', 'MT': 'EMEA',\n  'TR': 'EMEA',\n  'IL': 'MEA', 'IR': 'MEA',\n  'SA': 'MEA', 'AE': 'MEA', 'EG': 'MEA', 'IQ': 'MEA', 'JO': 'MEA', 'KW': 'MEA',\n  'QA': 'MEA', 'BH': 'MEA', 'OM': 'MEA', 'LB': 'MEA', 'YE': 'MEA', 'SY': 'MEA', 'PS': 'MEA',\n  'ZA': 'MEA', 'NG': 'MEA', 'KE': 'MEA', 'TZ': 'MEA', 'ET': 'MEA',\n  'MA': 'MEA', 'DZ': 'MEA', 'TN': 'MEA', 'LY': 'MEA', 'SD': 'MEA',\n  'MX': 'LATAM', 'AR': 'LATAM', 'CL': 'LATAM', 'CO': 'LATAM', 'PE': 'LATAM', 'VE': 'LATAM',\n  'EC': 'LATAM', 'GT': 'LATAM', 'CU': 'LATAM', 'DO': 'LATAM', 'HN': 'LATAM', 'SV': 'LATAM',\n  'NI': 'LATAM', 'CR': 'LATAM', 'PA': 'LATAM', 'UY': 'LATAM', 'PY': 'LATAM', 'BO': 'LATAM',\n  'BR': 'LATAM',\n  'US': 'Global', 'CA': 'Global',\n};\n\nfunction inferLanguageFromCountry(country) {\n  if (!country) return DEFAULT_LANGUAGE;\n  const c = String(country).trim().toUpperCase();\n  return COUNTRY_TO_LANG[c] || DEFAULT_LANGUAGE;\n}\n\nfunction inferRegionFromCountry(country) {\n  if (!country) return DEFAULT_REGION;\n  const c = String(country).trim().toUpperCase();\n  return COUNTRY_TO_REGION[c] || DEFAULT_REGION;\n}\n\nfunction inferLocaleFromCountryAndLang(country, language) {\n  if (!country || !language || language === DEFAULT_LANGUAGE) return DEFAULT_LOCALE;\n  const c = String(country).trim().toUpperCase();\n  const l = String(language).trim();\n  if (l.includes('-')) return l;\n  return `${l}-${c}`;\n}\n\nfor (const input of allInputs) {\n  if (input.json.noData) {\n    continue;\n  }\n\n  const source = input.json.source || 'Unknown';\n  const country = input.json.country || DEFAULT_COUNTRY;\n\n  let language = input.json.language || '';\n  let countryType = input.json.countryType || '';\n  let locale = input.json.locale || '';\n  let region = input.json.region || '';\n\n  if (source === 'App Store' || !source.includes('Google')) {\n    countryType = 'country';\n    language = language || inferLanguageFromCountry(country);\n    region = region || inferRegionFromCountry(country);\n    locale = locale || inferLocaleFromCountryAndLang(country, language);\n  }\n\n  if (source === 'Google Play' && !countryType) {\n    const regionValues = ['APAC', 'EMEA', 'LATAM', 'MEA', 'GLOBAL', 'UNKNOWN'];\n    countryType = regionValues.includes(String(country).toUpperCase()) ? 'region' : 'country';\n  }\n\n  language = language || DEFAULT_LANGUAGE;\n  countryType = countryType || DEFAULT_COUNTRY_TYPE;\n  locale = locale || DEFAULT_LOCALE;\n  region = region || DEFAULT_REGION;\n\n  items.push({\n    json: {\n      ...input.json,\n      country: country,\n      language: language,\n      countryType: countryType,\n      locale: locale,\n      region: region,\n      originalData: {\n        reviewId: input.json.reviewId || '',\n        userName: input.json.userName || 'Anonymous',\n        rating: input.json.rating || 0,\n        content: input.json.content || '',\n        date: input.json.date || new Date().toISOString(),\n        source: source,\n        country: country,\n        countryType: countryType,\n        language: language,\n        locale: locale,\n        region: region,\n        appVersion: input.json.appVersion || 'Unknown',\n        platform: input.json.platform || 'Unknown',\n        thumbsUp: input.json.thumbsUp || 0,\n      }\n    }\n  });\n}\n\nreturn items.length > 0 ? items : [{ json: { noData: true } }];"
+      },
+      "id": "ca184047-2c00-4007-8275-cdc91880024d",
+      "name": "Save Original Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1456,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process Google Play API response data\n// Map languages to countries, multi-country languages display as region\n\nconst items = [];\nconst inputData = $input.all();\n\nif (!inputData || inputData.length === 0) {\n  return [{ json: { noData: true, reason: 'No input data' } }];\n}\n\nconst response = inputData[0].json;\n\nif (!response) {\n  return [{ json: { noData: true, reason: 'API response is empty' } }];\n}\n\nconst LANG_TO_COUNTRY = {\n  'ja': 'JP', 'ko': 'KR', 'zh-CN': 'CN', 'zh-TW': 'TW', 'mn': 'MN',\n  'th': 'TH', 'vi': 'VN', 'id': 'ID', 'km': 'KH', 'lo': 'LA', 'my': 'MM',\n  'bn': 'BD', 'si': 'LK', 'ne': 'NP',\n  'kk': 'KZ', 'uz': 'UZ', 'ka': 'GE', 'hy': 'AM', 'az': 'AZ',\n  'pl': 'PL', 'cs': 'CZ', 'hu': 'HU', 'sk': 'SK', 'uk': 'UA', 'bg': 'BG', 'ro': 'RO',\n  'hr': 'HR', 'sr': 'RS', 'sl': 'SI', 'lt': 'LT', 'lv': 'LV', 'et': 'EE',\n  'el': 'GR', 'fi': 'FI', 'da': 'DK', 'no': 'NO', 'sv': 'SE', 'is': 'IS',\n  'mk': 'MK', 'sq': 'AL', 'bs': 'BA', 'be': 'BY', 'mt': 'MT', 'ga': 'IE', 'cy': 'GB',\n  'he': 'IL', 'fa': 'IR', 'tr': 'TR',\n  'am': 'ET', 'sw': 'TZ', 'zu': 'ZA', 'ha': 'NG', 'yo': 'NG',\n};\n\nconst MULTI_COUNTRY_LANGS = [\n  'en', 'es', 'fr', 'de', 'pt', 'ar', 'ru', 'it', 'nl', 'ms',\n  'ta', 'hi', 'ur', 'te', 'ml', 'mr', 'gu', 'pa', 'ca', 'eu',\n  'gl', 'ku', 'ps',\n];\n\nfunction langToCountry(language, region) {\n  if (!language) return region || 'Unknown';\n  \n  const lang = String(language).trim();\n  const baseLang = lang.split('-')[0].toLowerCase();\n  if (MULTI_COUNTRY_LANGS.includes(baseLang) || MULTI_COUNTRY_LANGS.includes(lang)) {\n    return region || 'Global';\n  }\n  \n  if (LANG_TO_COUNTRY[lang]) {\n    return LANG_TO_COUNTRY[lang];\n  }\n  \n  if (LANG_TO_COUNTRY[baseLang]) {\n    return LANG_TO_COUNTRY[baseLang];\n  }\n  \n  return region || 'Unknown';\n}\n\nconst batchLanguageRaw =\n  (inputData[0] && inputData[0].json && (inputData[0].json.googlePlayLanguages || inputData[0].json.languages)) ||\n  (response && (response.googlePlayLanguages || response.languages)) ||\n  '';\n\nconst language_batch = Array.isArray(batchLanguageRaw) \n  ? String(batchLanguageRaw[0] || '').trim() \n  : String(batchLanguageRaw).trim();\n\nlet reviews = [];\nif (response.reviews && Array.isArray(response.reviews)) {\n  reviews = response.reviews;\n} else if (response.data && Array.isArray(response.data)) {\n  reviews = response.data;\n} else if (Array.isArray(response)) {\n  reviews = response;\n}\n\nif (reviews.length === 0) {\n  return [{ json: { noData: true, reason: 'No review data' } }];\n}\n\nreviews.forEach((review, index) => {\n  try {\n    const reviewId = review.reviewId || review.id || `gp_${index}_${Date.now()}`;\n    const userName = review.userName || review.author || 'Anonymous';\n    const rating = parseInt(review.rating || review.score || 0, 10);\n    const content = review.reviewText || review.text || review.content || review.comment || '';\n\n    let date = review.reviewDate || review.date || review.published || review.at || new Date().toISOString();\n    if (typeof date === 'number') {\n      date = new Date(date).toISOString();\n    } else if (typeof date === 'string' && !date.includes('T')) {\n      try { date = new Date(date).toISOString(); } catch (e) { date = new Date().toISOString(); }\n    }\n\n    const appVersion = review.appVersion || review.version || review.app_version || '';\n    const locale = String(review.locale || '').trim();\n    const language = String(review.language || language_batch || '').trim();\n    const region = String(review.region || '').trim();\n\n    const country = langToCountry(language, region);\n    const countryType = LANG_TO_COUNTRY[language] || LANG_TO_COUNTRY[language.split('-')[0]] \n      ? 'country' \n      : 'region';\n\n    if (content && content.trim().length > 0) {\n      items.push({\n        json: {\n          reviewId: String(reviewId),\n          userName: String(userName),\n          rating: rating,\n          content: String(content).trim(),\n          date: date,\n          source: 'Google Play',\n          country: String(country),\n          countryType: countryType,\n          language: String(language),\n          locale: String(locale),\n          region: String(region),\n          appVersion: String(appVersion),\n          platform: review.platform || 'Android',\n          thumbsUp: parseInt(review.thumbsUp || 0, 10),\n        },\n      });\n    }\n  } catch (err) {\n    console.error(`Error processing review ${index}:`, err.message);\n  }\n});\n\nreturn items.length > 0 ? items : [{ json: { noData: true, reason: 'No valid reviews' } }];"
+      },
+      "id": "e21ea305-1649-46da-98cb-e3e4b4d7a119",
+      "name": "Process Google Play Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        352,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 10
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -256,
+        144
+      ],
+      "id": "677048ec-3693-41df-93d9-350bc69b4380",
+      "name": "Wait",
+      "webhookId": "YOUR_WEBHOOK_ID_1"
+    },
+    {
+      "parameters": {
+        "amount": 10
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -320,
+        1024
+      ],
+      "id": "1c7d86c7-d8cc-4bff-a5ca-e18396492562",
+      "name": "Wait1",
+      "webhookId": "YOUR_WEBHOOK_ID_2"
+    },
+    {
+      "parameters": {
+        "options": {
+          "reset": false
+        }
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -832,
+        16
+      ],
+      "id": "7d377789-e870-4bf1-8a43-b0861e92e988",
+      "name": "Batch Process"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -1008,
+        816
+      ],
+      "id": "8f1b130a-eaab-4588-a72f-cb3c2150db2f",
+      "name": "Batch Process App"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "d79b1a40-75a2-4aa3-a4af-7c22765e1738",
+              "leftValue": "={{$json.date }}",
+              "rightValue": "= {{ $now.minus({ days: 14 }).startOf('day').toISO() }}",
+              "operator": {
+                "type": "dateTime",
+                "operation": "after"
+              }
+            },
+            {
+              "id": "3823f496-a7a2-47eb-8acd-3eba505522bd",
+              "leftValue": "={{$json.date}}",
+              "rightValue": "={{ $now.endOf('day').toISO() }}",
+              "operator": {
+                "type": "dateTime",
+                "operation": "before"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "15841c93-4162-4e5d-857a-5bae82477542",
+      "name": "Date Filter (Last Week)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        864,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "alert-check",
+              "leftValue": "={{ +$json.rating || 0}}",
+              "rightValue": 2,
+              "operator": {
+                "type": "number",
+                "operation": "lte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {
+          "looseTypeValidation": true
+        }
+      },
+      "id": "61b246cb-cf64-4c82-b4f0-3bc473472bb8",
+      "name": "Alert Check",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [
+        3328,
+        544
+      ],
+      "retryOnFail": false,
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "databaseId": {
+          "__rl": true,
+          "value": "YOUR_NOTION_DATABASE_ID",
+          "mode": "list",
+          "cachedResultName": "Your Notion Database"
+        },
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "=Title|title",
+              "title": "={{$json.title || 'No Title' }}"
+            },
+            {
+              "key": "=Review ID|rich_text",
+              "textContent": "={{ $json.reviewId || '' }}"
+            },
+            {
+              "key": "=Username|rich_text",
+              "textContent": "={{ $json.userName || 'Anonymous'  }}"
+            },
+            {
+              "key": "=Review Content|rich_text",
+              "textContent": "={{ $json.content || ''  }}"
+            },
+            {
+              "key": "=Translated Content|rich_text",
+              "textContent": "={{ $json.translation || ''  }}"
+            },
+            {
+              "key": "=Rating|number",
+              "numberValue": "={{ $json.rating || 0  }}"
+            },
+            {
+              "key": "=Review Date|date",
+              "date": "={{ $json.date || ''  }}"
+            },
+            {
+              "key": "=Sentiment Label|select",
+              "selectValue": "={{ $json.sentiment || 'Neutral'  }}"
+            },
+            {
+              "key": "=Intent Label|select",
+              "selectValue": "={{ $json.intent || 'Other'  }}"
+            },
+            {
+              "key": "=Feature Category|select",
+              "selectValue": "={{ $json.feature || 'Other'  }}"
+            },
+            {
+              "key": "=Priority|select",
+              "selectValue": "={{ $json.priority || 'Medium'  }}"
+            },
+            {
+              "key": "=Source|select",
+              "selectValue": "={{ $json.source || ''  }}"
+            },
+            {
+              "key": "=Processing Status|select",
+              "selectValue": "=Pending"
+            },
+            {
+              "key": "=Country|rich_text",
+              "textContent": "={{ $json.country || ''  }}"
+            },
+            {
+              "key": "=App Version|select",
+              "selectValue": "={{ $json.appVersion || ''  }}"
+            },
+            {
+              "key": "=Country Type|select",
+              "selectValue": "={{ $json.countryType || ''  }}"
+            },
+            {
+              "key": "=Review Language|rich_text",
+              "textContent": "={{ $json.language || ''  }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "db36db42-0414-41c4-ba6f-3eecd5b00c8f",
+      "name": "Write to Notion",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        3344,
+        336
+      ],
+      "credentials": {
+        "notionApi": {
+          "id": "YOUR_NOTION_API_ID",
+          "name": "Your Notion Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "YOUR_AI_MODEL_ID"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "## Role\nYou are a top SaaS product operations expert. You have keen data insights and excel at extracting core issues from user feedback to drive product iteration and experience optimization.\n\n## Background\nYour app has experienced a decline in app store ratings. Your task is to perform deep analysis and structured processing of user feedback from app stores to provide data support for product iteration and operational improvements.\n\n## Your Task\nAnalyze user reviews from App Store and Google Play. For each review, perform deep analysis according to the established labeling system and output strict JSON format data.\n\n## Labeling System\n\n### Sentiment Labels (5 options)\n- Positive: Clear praise, love or satisfaction\n- Negative: Clear complaints, dissatisfaction, disappointment or criticism\n- Neutral: Neutral factual statements, questions or no obvious emotional color\n- Urgent: Strong negative emotions (anger, frustration), problems severely affect usage\n- Frustrated: Feeling frustrated or confused, usually involving severe experience barriers\n\n### Intent Labels (10 options)\n- Bug Report: App functionality issues, crashes, data errors\n- Feature Request: New feature suggestions or existing feature improvements\n- Usability Issue: Complex operations, unintuitive design\n- Customer Service: Slow customer service response, unresolved issues\n- Newbie Question: How to use basic app features\n- Positive Showcase: Sharing positive experiences, expressing gratitude\n- Pricing Issue: Price, subscription, payment or renewal issues\n- Account Problem: Login, registration, password, 2FA issues\n- Performance Issue: Page lag, slow loading, timeout\n- Competitor Comparison: Explicitly mentioning competitors\n\n### Feature Categories (positive feedback fill \"N/A\")\n- WiFi Configuration: SSID settings, password changes, band selection, channel adjustment, guest network\n- Account/Login: Login, registration, password reset, 2FA, account security\n- Connection/Loading: Controller connection unstable, remote access failure, slow loading\n- Voucher: Voucher creation, batch generation, validity period, printing\n- Device Management: Device adding, deleting, configuration, firmware upgrade\n- Dashboard/UI: Interface display, data statistics, dashboard\n- Notification: Notification push, alert settings\n- Network Topology: Topology display, network structure\n- Client Management: Client management, blacklist, speed limit\n- Settings: App settings, preference configuration\n- Other: Cannot be categorized\n\n## Important Principles\n1. Be faithful to original text\n2. Consistency in labeling\n3. Single choice principle\n4. JSON format: Must output valid JSON without any other text",
+              "role": "system"
+            },
+            {
+              "content": "=Analyze the following user review:\n\n【Original】： {{$json.content}} \n【Rating】： {{$json.rating}} stars\n【Source】： {{$json.source}} \n\nPlease analyze and fill in the JSON:\n\n{\n  \"translation\": \"<Translate to Simplified Chinese>\",\n  \"sentiment\": \"<Positive/Negative/Neutral/Urgent/Mixed>\",\n  \"intent\": \"<Bug Report/Feature Request/Usability Issue/Customer Service/Newbie Question/Positive Showcase/Pricing Issue/Account Problem/Performance Issue/Competitor Comparison>\",\n  \"feature\": \"<Feature category>\",\n  \"summary\": \"<Summarize in 15 characters or less>\",\n  \"keywords\": [\"<keyword1>\", \"<keyword2>\", \"<keyword3>\"],\n  \"priority\": \"<High/Medium/Low>\"\n}\n\nImportant: Output real analysis results only, no placeholder text! Only output JSON."
+            }
+          ]
+        },
+        "jsonOutput": true,
+        "options": {
+          "temperature": 0.3
+        }
+      },
+      "id": "1a21cf21-4b2e-4321-acda-dc2ad070d708",
+      "name": "AI Analyze Reviews",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1,
+      "position": [
+        1936,
+        816
+      ],
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "openAiApi": {
+          "id": "YOUR_OPENAI_API_ID",
+          "name": "Your AI Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "batchSize": 4,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1728,
+        384
+      ],
+      "id": "7e235d08-9927-48d3-bb20-d2801440990a",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "amount": 3
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2272,
+        816
+      ],
+      "id": "c217124f-7aaa-4ad9-80c8-dceb155e050f",
+      "name": "Wait2",
+      "webhookId": "YOUR_WEBHOOK_ID_3"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        2736,
+        800
+      ],
+      "id": "597aa773-ce18-448a-be25-de5d63be919a",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "getAll",
+        "databaseId": {
+          "__rl": true,
+          "value": "YOUR_NOTION_DATABASE_ID",
+          "mode": "list",
+          "cachedResultName": "Your Notion Database"
+        },
+        "returnAll": true,
+        "filterType": "manual",
+        "filters": {
+          "conditions": [
+            {
+              "key": "=Review Date|date",
+              "condition": "on_or_after",
+              "date": "={{ $now.minus({days: 30}).toISODate() }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        1984,
+        112
+      ],
+      "id": "575a932c-a259-4811-b25c-69071b2ce404",
+      "name": "Query Existing Reviews",
+      "credentials": {
+        "notionApi": {
+          "id": "YOUR_NOTION_API_ID",
+          "name": "Your Notion Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get existing review IDs\nconst existingReviews = $('Query Existing Reviews').all();\nconst existingIds = new Set();\n\nfor (const item of existingReviews) {\n  const reviewId = item.json.property_id || '';\n  if (reviewId) {\n    existingIds.add(reviewId);\n  }\n}\n\nconsole.log('=== Existing Reviews ===');\nconsole.log('Total:', existingIds.size);\n\n// Get pending reviews\nconst inputItems = $('Parse AI Results').all();\n\nconsole.log('=== Pending Reviews ===');\nconsole.log('Total:', inputItems.length);\n\n// Compare and filter\nconst newItems = [];\n\nfor (const item of inputItems) {\n  if (item.json.noData) {\n    continue;\n  }\n\n  const reviewId = item.json.reviewId || '';\n  const exists = existingIds.has(reviewId);\n  \n  if (reviewId && !exists) {\n    newItems.push(item);\n  }\n}\n\nconsole.log('=== Result ===');\nconsole.log('New reviews:', newItems.length);\n\nreturn newItems.length > 0\n  ? newItems\n  : [{ json: { noData: true, reason: 'No new reviews' } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2752,
+        352
+      ],
+      "id": "1f17c735-fa47-4d5e-9532-a1976e6bb0d9",
+      "name": "Deduplicate Filter"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        2496,
+        352
+      ],
+      "id": "6e1ca625-2c33-45e8-af2a-45eb1673e8b4",
+      "name": "Merge1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "89e20eae-b6ca-40c0-9d70-f9ea476b4701",
+              "leftValue": "{{$json.data }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "f5d64644-453b-46f0-9777-623a1b4185be",
+      "name": "If1",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -608,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = [];\n\nfor (const item of $input.all()) {\n  if (\n    item.json.data &&\n    typeof item.json.data === 'string' &&\n    item.json.data.trim().length > 0 &&\n    !item.json.error &&\n    (item.json.data.includes('<feed') || item.json.data.includes('<?xml') || item.json.data.includes('<rss'))\n  ) {\n    items.push(item);\n  }\n}\n\nreturn items;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -608,
+        672
+      ],
+      "id": "75dbfdcb-cd54-4216-b1ff-bfa8c9b462ff",
+      "name": "Filter Empty Data 1"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "googlePlayLanguages",
+        "options": {}
+      },
+      "id": "c83717e4-9d58-49c7-957f-1455eb749ff1",
+      "name": "Split Google Play Language List",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        -1248,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Calculate date range\nconst yesterday = new Date();\nyesterday.setDate(yesterday.getDate() - 1);\nyesterday.setHours(0, 0, 0, 0);\n\nconst yesterdayEnd = new Date();\nyesterdayEnd.setDate(yesterdayEnd.getDate() - 1);\nyesterdayEnd.setHours(23, 59, 59, 999);\n\n// Google Play languages (sorted by review volume)\nconst googlePlayLanguages = [\n  'en', 'es', 'pt', 'de', 'fr', 'ja', 'ko', 'ru', 'it', 'nl',\n  'zh-CN', 'zh-TW', 'tr', 'pl', 'vi', 'th', 'id', 'ar', 'hi',\n  'cs', 'el', 'hu', 'ro', 'sv', 'da', 'fi', 'no', 'sk', 'uk',\n  'bg', 'hr', 'sr', 'sl', 'lt', 'lv', 'et', 'he', 'fa', 'ms',\n  'bn', 'ta', 'te', 'ml', 'ur', 'mr', 'gu', 'pa',\n  'is', 'mk', 'sq', 'bs', 'be', 'ka', 'hy', 'az', 'ca', 'eu',\n  'gl', 'mt', 'cy', 'ga', 'ku', 'ps', 'si', 'ne', 'my', 'km',\n  'lo', 'mn', 'kk', 'uz', 'sw', 'am', 'ha', 'yo', 'zu'\n];\n\n// App Store countries\nconst appStoreCountries = [\n  'af', 'al', 'dz', 'ao', 'ai', 'ag', 'ar', 'am', 'au', 'at',\n  'az', 'bs', 'bh', 'bd', 'bb', 'by', 'be', 'bz', 'bj', 'bm',\n  'bt', 'bo', 'ba', 'bw', 'br', 'vg', 'bn', 'bg', 'bf', 'kh',\n  'cm', 'ca', 'ky', 'td', 'cl', 'cn', 'co', 'cd', 'cr', 'ci',\n  'hr', 'cu', 'cy', 'cz', 'dk', 'dm', 'do', 'ec', 'eg', 'sv',\n  'ee', 'sz', 'fj', 'fi', 'fr', 'ga', 'gm', 'ge', 'de', 'gh',\n  'gr', 'gd', 'gt', 'gw', 'gy', 'hn', 'hk', 'hu', 'is', 'in',\n  'id', 'ie', 'il', 'it', 'jm', 'jp', 'jo', 'kz', 'ke', 'ki',\n  'kw', 'kg', 'la', 'lv', 'lb', 'ls', 'lr', 'ly', 'li', 'lt',\n  'lu', 'mo', 'mk', 'mg', 'mw', 'my', 'mv', 'ml', 'mt', 'mh',\n  'mr', 'mu', 'mx', 'fm', 'md', 'mc', 'mn', 'me', 'ms', 'ma',\n  'mz', 'mm', 'na', 'nr', 'np', 'nl', 'nz', 'ni', 'ne', 'ng',\n  'nu', 'nf', 'kp', 'no', 'om', 'pk', 'pw', 'ps', 'pa', 'pg',\n  'py', 'pe', 'ph', 'pn', 'pl', 'pt', 'qa', 'ro', 'ru', 'rw',\n  're', 'bl', 'sh', 'kn', 'lc', 'mf', 'pm', 'vc', 'ws', 'sm',\n  'st', 'sa', 'sn', 'rs', 'sc', 'sl', 'sg', 'sx', 'sk', 'si',\n  'sb', 'so', 'za', 'gs', 'kr', 'ss', 'es', 'lk', 'sr', 'sj',\n  'se', 'ch', 'tw', 'tj', 'tz', 'th', 'tl', 'tg', 'tk', 'to',\n  'tt', 'tn', 'tr', 'tm', 'tc', 'tv', 'ug', 'ua', 'ae', 'gb',\n  'us', 'um', 'uy', 'uz', 'vu', 've', 'vn', 'vi', 'wf', 'eh',\n  'ye', 'zm', 'zw'\n];\n\nreturn {\n  yesterdayStart: yesterday.toISOString(),\n  yesterdayEnd: yesterdayEnd.toISOString(),\n  googlePlayLanguages: googlePlayLanguages,\n  appStoreCountries: appStoreCountries\n};"
+      },
+      "id": "f34cacdd-f07a-45a4-999d-b7c753af415e",
+      "name": "Initialize Variables",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1920,
+        416
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "366375a1-0b35-4ad3-8388-10e2d10be61a",
+              "leftValue": "={{ $json.noData }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "d631efec-1b2b-41db-984f-f2d3b81879ad",
+      "name": "Filter Null Values",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3056,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 3,
+              "triggerAtMinute": 5
+            }
+          ]
+        }
+      },
+      "id": "4a481937-0ed1-4910-bd17-d632c57f654e",
+      "name": "Daily Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -2208,
+        416
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Set Source: Google Play": {
+      "main": [
+        [
+          {
+            "node": "Split Google Play Language List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Google Play Reviews": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Source: App Store": {
+      "main": [
+        [
+          {
+            "node": "Split App Store Country List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split App Store Country List": {
+      "main": [
+        [
+          {
+            "node": "Batch Process App",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch App Store RSS": {
+      "main": [
+        [
+          {
+            "node": "Wait1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse XML": {
+      "main": [
+        [
+          {
+            "node": "Process App Store Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process App Store Data": {
+      "main": [
+        [
+          {
+            "node": "Merge Results",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Results": {
+      "main": [
+        [
+          {
+            "node": "Date Filter (Last Week)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Empty Data": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Save Original Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Results": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Process Google Play Data": {
+      "main": [
+        [
+          {
+            "node": "Merge Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Batch Process",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait1": {
+      "main": [
+        [
+          {
+            "node": "Batch Process App",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Batch Process": {
+      "main": [
+        [
+          {
+            "node": "Process Google Play Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fetch Google Play Reviews",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Batch Process App": {
+      "main": [
+        [
+          {
+            "node": "Filter Empty Data 1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fetch App Store RSS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Original Data": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Query Existing Reviews",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Analyze Reviews": {
+      "main": [
+        [
+          {
+            "node": "Wait2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Results",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Analyze Reviews",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait2": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Existing Reviews": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Deduplicate Filter": {
+      "main": [
+        [
+          {
+            "node": "Filter Null Values",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge1": {
+      "main": [
+        [
+          {
+            "node": "Deduplicate Filter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Date Filter (Last Week)": {
+      "main": [
+        [
+          {
+            "node": "Filter Empty Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        []
+      ]
+    },
+    "Filter Empty Data 1": {
+      "main": [
+        [
+          {
+            "node": "Parse XML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Google Play Language List": {
+      "main": [
+        [
+          {
+            "node": "Batch Process",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Initialize Variables": {
+      "main": [
+        [
+          {
+            "node": "Set Source: Google Play",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set Source: App Store",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Null Values": {
+      "main": [
+        [
+          {
+            "node": "Alert Check",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Write to Notion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Initialize Variables",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "timeSavedMode": "fixed",
+    "timezone": "Asia/Shanghai",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "versionId": "YOUR_VERSION_ID",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "YOUR_INSTANCE_ID"
+  },
+  "id": "YOUR_WORKFLOW_ID",
+  "tags": []
+}

@@ -1,0 +1,769 @@
+{
+  "name": "Email Feedback Analysis Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "databaseId": {
+          "__rl": true,
+          "value": "YOUR_NOTION_DATABASE_ID",
+          "mode": "list",
+          "cachedResultName": "Your App Feedback Database",
+          "cachedResultUrl": "https://www.notion.so/YOUR_NOTION_PAGE"
+        },
+        "title": "={{ $json[\"Issue Summary\"] }}",
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "=Original Feedback|rich_text",
+              "textContent": "={{ $json[\"Original Feedback\"] }}"
+            },
+            {
+              "key": "=Translated Text|rich_text",
+              "textContent": "={{ $json[\"Translated Text\"] }}"
+            },
+            {
+              "key": "=Email Subject|rich_text",
+              "textContent": "={{ $json[\"Email Subject\"] }}"
+            },
+            {
+              "key": "=User Email|rich_text",
+              "textContent": "={{ $json[\"User Email\"] }}"
+            },
+            {
+              "key": "=User ID 2|rich_text",
+              "textContent": "={{ $json[\"User ID 2\"] }}"
+            },
+            {
+              "key": "=User Name|rich_text",
+              "textContent": "={{ $json[\"User Name\"] }}"
+            },
+            {
+              "key": "=App Version|rich_text",
+              "textContent": "={{ $json[\"App Version\"] }}"
+            },
+            {
+              "key": "=Mobile OS|rich_text",
+              "textContent": "={{ $json[\"Mobile OS\"] }}"
+            },
+            {
+              "key": "=Phone Model|rich_text",
+              "textContent": "={{ $json[\"Phone Model\"] }}"
+            },
+            {
+              "key": "=Device Model|rich_text",
+              "textContent": "={{ $json[\"Device Model\"] }}"
+            },
+            {
+              "key": "=Hardware Version|rich_text",
+              "textContent": "={{ $json[\"Hardware Version\"] }}"
+            },
+            {
+              "key": "=Firmware Version|rich_text",
+              "textContent": "={{ $json[\"Firmware Version\"] }}"
+            },
+            {
+              "key": "=Message ID|rich_text",
+              "textContent": "={{ $json[\"Message ID\"] }}"
+            },
+            {
+              "key": "=Feedback Category|rich_text",
+              "textContent": "={{ $json[\"Feedback Category\"] }}"
+            },
+            {
+              "key": "=Feedback Type|rich_text",
+              "textContent": "={{ $json[\"Feedback Type\"] }}"
+            },
+            {
+              "key": "=Sentiment|select",
+              "selectValue": "={{ $json[\"Sentiment\"] }}"
+            },
+            {
+              "key": "=Country|select",
+              "selectValue": "={{ $json[\"Country\"] }}"
+            },
+            {
+              "key": "=Region|rich_text",
+              "textContent": "={{ $json[\"Region\"] }}"
+            },
+            {
+              "key": "=Is Urgent|checkbox",
+              "checkboxValue": "={{ $json[\"Is Urgent\"] }}"
+            },
+            {
+              "key": "=Received Date|date",
+              "date": "={{ $json[\"Received Date\"] }}"
+            },
+            {
+              "key": "=Feature Classification|rich_text",
+              "textContent": "={{ $json['Feature Classification'] }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "60cd0eb6-79e0-48ee-b82a-a74c47c47b8b",
+      "name": "Write to Notion",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        3152,
+        224
+      ],
+      "credentials": {
+        "notionApi": {
+          "id": "YOUR_NOTION_API_ID",
+          "name": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "urgentTrue",
+              "leftValue": "={{ $('Parse AI Results').item.json['Is Urgent'] }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              },
+              "rightValue": ""
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "6e6003ec-12fc-465c-86d2-311d8ac5d144",
+      "name": "If: Urgent",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3504,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 30
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        3312,
+        560
+      ],
+      "id": "4a8e4299-7158-4dc0-8fb8-1ea5cb7bffe5",
+      "name": "Wait",
+      "webhookId": "YOUR_WEBHOOK_ID_4"
+    },
+    {
+      "parameters": {
+        "operation": "removeItemsSeenInPreviousExecutions",
+        "dedupeValue": "={{ $json[\"Message ID\"]}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.removeDuplicates",
+      "typeVersion": 2,
+      "position": [
+        32,
+        272
+      ],
+      "id": "a3232f5e-a74d-49e8-84c3-da1725bf618c",
+      "name": "Remove Processed Data"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_DOC_ID",
+          "mode": "list",
+          "cachedResultName": "your-app email-feedback-staging",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_DOC_ID/edit"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_DOC_ID/edit"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -208,
+        272
+      ],
+      "id": "70cb8212-8761-4586-abc8-809e06d9c729",
+      "name": "Fetch Google Sheet Data",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GOOGLE_SHEETS_API_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 5
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -464,
+        272
+      ],
+      "id": "9c591902-e7e0-4ccc-8aa6-5e641cc9271e",
+      "name": "Daily Schedule"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "ade69018-f6f4-4be1-9f6a-be003b17651d",
+      "name": "Process Each Email - AI Analysis",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        2448,
+        240
+      ],
+      "retryOnFail": true
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// ===== 安全获取输入数据 =====\nconst inputData = $input.item.json || {};\nconst htmlContent = (inputData[\"Body Content\"] || '').toString().trim();\nconst rawEmailSubject = (inputData[\"邮件主题\"] || '').toString().trim();\nconst receiveTime = (inputData[\"Received Time\"] || '').toString().trim();\nconst messageId = (inputData[\"Message ID\"] || '').toString().trim();\nconst rowNumber = (inputData[\"Row Number\"] || '').toString();\n\n// ===== 辅助函数 =====\n\n/**\n * 安全提取表格字段值\n * @param {string} html - HTML内容\n * @param {string} fieldName - 字段名\n * @returns {string} 提取的值，失败返回空字符串\n */\nfunction extractField(html, fieldName) {\n  if (!html || !fieldName) return '';\n  \n  try {\n    // 转义正则特殊字符\n    const escapedFieldName = fieldName.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');\n    \n    const patterns = [\n      new RegExp(`<th[^>]*>\\\\s*${escapedFieldName}:?\\\\s*</th>\\\\s*<td[^>]*>([^<]*)</td>`, 'i'),\n      new RegExp(`<th[^>]*>\\\\s*${escapedFieldName}:?\\\\s*</th>\\\\s*</tr>\\\\s*<tr>\\\\s*<td[^>]*>([^<]*)</td>`, 'i'),\n    ];\n    \n    for (const pattern of patterns) {\n      const match = html.match(pattern);\n      if (match && match[1]) {\n        const value = match[1].trim();\n        // 过滤无效值\n        if (value && value.toLowerCase() !== 'null' && value !== 'undefined') {\n          return value;\n        }\n      }\n    }\n  } catch (error) {\n    console.log(`提取字段 \"${fieldName}\" 失败:`, error.message);\n  }\n  \n  return '';\n}\n\n/**\n * 安全提取反馈正文（支持两种格式）\n * @param {string} html - HTML内容\n * @returns {string} 反馈正文\n */\nfunction extractFeedbackContent(html) {\n  if (!html) return '';\n  \n  try {\n    // 格式1: Suggestions, opinions and questions:\n    let match = html.match(/Suggestions,?\\s*opinions\\s*and\\s*questions:?\\s*<\\/th>\\s*<\\/tr>\\s*<tr>\\s*<td[^>]*>([\\s\\S]*?)<\\/td>/i);\n    if (match && match[1]) {\n      const content = match[1].replace(/<[^>]*>/g, '').trim();\n      if (content) return content;\n    }\n    \n    // 格式2: Detailed Description of the Problem:\n    match = html.match(/Detailed\\s*Description\\s*of\\s*the\\s*Problem:?\\s*<\\/th>\\s*<\\/tr>\\s*<tr>\\s*<td[^>]*>([\\s\\S]*?)<\\/td>/i);\n    if (match && match[1]) {\n      const content = match[1].replace(/<[^>]*>/g, '').trim();\n      if (content) return content;\n    }\n    \n    // 备用：匹配colspan=\"2\"的内容\n    match = html.match(/<td\\s+colspan=[\"']?2[\"']?[^>]*>([\\s\\S]*?)<\\/td>/i);\n    if (match && match[1]) {\n      const content = match[1].replace(/<[^>]*>/g, '').trim();\n      // 排除标题行\n      if (content && !content.includes('Suggestions') && !content.includes('Description')) {\n        return content;\n      }\n    }\n  } catch (error) {\n    console.log('提取反馈正文失败:', error.message);\n  }\n  \n  return '';\n}\n\n/**\n * 判断反馈格式类型\n * @param {string} html - HTML内容\n * @returns {string} 格式类型\n */\nfunction getFeedbackFormat(html) {\n  if (!html) return 'unknown';\n  \n  if (html.includes('Suggestions, opinions and questions') || \n      html.includes('Suggestions,opinions and questions')) {\n    return 'suggestions';\n  } else if (html.includes('Detailed Description of the Problem')) {\n    return 'detailed';\n  }\n  return 'unknown';\n}\n\n/**\n * 清理并验证字段值\n * @param {string} value - 原始值\n * @param {string} defaultValue - 默认值\n * @returns {string} 清理后的值\n */\nfunction cleanValue(value, defaultValue = '') {\n  if (value === null || value === undefined) return defaultValue;\n  \n  const strValue = String(value).trim();\n  \n  // 过滤无效值\n  const invalidValues = ['null', 'undefined', 'N/A', 'n/a', 'NA', '-'];\n  if (invalidValues.includes(strValue.toLowerCase()) || strValue === '') {\n    return defaultValue;\n  }\n  \n  return strValue;\n}\n\n/**\n * 尝试多个字段名提取值\n * @param {string} html - HTML内容\n * @param {string[]} fieldNames - 字段名数组\n * @returns {string} 提取的值\n */\nfunction extractFieldMultiple(html, fieldNames) {\n  for (const fieldName of fieldNames) {\n    const value = extractField(html, fieldName);\n    if (value) return value;\n  }\n  return '';\n}\n\n// ===== 主逻辑 =====\n\nlet parsed = {};\n\ntry {\n  // 检查是否有有效的HTML内容\n  const hasValidHtml = htmlContent && htmlContent.includes('<') && htmlContent.includes('>');\n  \n  if (!hasValidHtml) {\n    console.log('警告: HTML内容为空或无效');\n  }\n  \n  parsed = {\n    // ----- 来自Google Sheet的原始数据 -----\n    \"Received Date\": cleanValue(receiveTime),\n    \"Original Email\": htmlContent || '',  // 保留原始HTML，即使为空\n    \"Message ID\": cleanValue(messageId),\n    \"Row Number\": cleanValue(rowNumber),\n    \"Email Subject\": cleanValue(rawEmailSubject),  // ← 新增这一行\n    \n    // ----- 解析的反馈信息 -----\n    \"feedbackFormat\": getFeedbackFormat(htmlContent),\n    \"Original Feedback\": extractFeedbackContent(htmlContent),\n    \"Feedback Category\": extractFieldMultiple(htmlContent, ['Feeback Category', 'Feedback Category']),\n    \"Feedback Type\": extractFieldMultiple(htmlContent, ['Feeback Type', 'Feedback Type']),\n    \n    // ----- 用户信息 -----\n    \"User Email\": cleanValue(extractField(htmlContent, 'Email')),\n    \"User ID 2\": cleanValue(extractField(htmlContent, 'User ID 2')),\n    \"User Name\": cleanValue(extractField(htmlContent, 'Name')),\n    \"Country\": extractFieldMultiple(htmlContent, ['Country', 'Location']),\n    \"Region\": cleanValue(extractField(htmlContent, 'Area')),\n    \n    // ----- 设备信息 -----\n    \"Device Model\": extractFieldMultiple(htmlContent, [\n      \"What's the model/version number of your device\",\n      'Model Number',\n      'Model Type'\n    ]),\n    \"Hardware Version\": cleanValue(extractField(htmlContent, 'Hardware Version')),\n    \"Firmware Version\": extractFieldMultiple(htmlContent, ['Firmware Version', 'Firmware']),\n    \n    // ----- App和手机信息 -----\n    \"App Version\": cleanValue(extractField(htmlContent, 'App Version')),\n    \"Mobile OS\": cleanValue(extractField(htmlContent, 'Mobile OS Version')),\n    \"Phone Model\": cleanValue(extractField(htmlContent, 'Mobile Type')),\n    \n    // ----- 解析状态 -----\n    \"_parseSuccess\": hasValidHtml && extractFeedbackContent(htmlContent) !== '',\n    \"_parseTime\": new Date().toISOString(),\n  };\n  \n  // 验证关键字段\n  if (!parsed[\"Original Feedback\"]) {\n    console.log('警告: 未能提取到反馈正文');\n    parsed._parseSuccess = false;\n  }\n  \n} catch (error) {\n  console.log('解析邮件内容时发生错误:', error.message);\n  \n  // 返回基本数据，标记解析失败\n  parsed = {\n    \"Received Date\": cleanValue(receiveTime),\n    \"Original Email\": htmlContent || '',\n    \"Message ID\": cleanValue(messageId),\n    \"Row Number\": cleanValue(rowNumber),\n    \"Email Subject\": cleanValue(rawEmailSubject),  // ← 新增这一行\n    \"Original Feedback\": '',\n    \"Feedback Category\": '',\n    \"Feedback Type\": '',\n    \"User Email\": '',\n    \"User ID 2\": '',\n    \"User Name\": '',\n    \"Country\": '',\n    \"Region\": '',\n    \"Device Model\": '',\n    \"Hardware Version\": '',\n    \"Firmware Version\": '',\n    \"App Version\": '',\n    \"Mobile OS\": '',\n    \"Phone Model\": '',\n    \"feedbackFormat\": 'error',\n    \"_parseSuccess\": false,\n    \"_parseError\": error.message,\n    \"_parseTime\": new Date().toISOString(),\n  };\n}\n\nreturn parsed;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        864,
+        480
+      ],
+      "id": "f70fe48d-1000-439e-b8b7-09637708d64e",
+      "name": "Parse Email Content",
+      "retryOnFail": true
+    },
+    {
+      "parameters": {
+        "batchSize": 20,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        560,
+        272
+      ],
+      "id": "edcf4852-bad0-49c6-aa65-55327180cbc4",
+      "name": "Batch Extract",
+      "retryOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst seen = new Map(); // 存储 dedupeKey -> {index, time}\nconst unique = [];\n\n// 简单的字符串哈希函数\nfunction simpleHash(str) {\n  let hash = 0;\n  for (let i = 0; i < str.length; i++) {\n    const char = str.charCodeAt(i);\n    hash = ((hash << 5) - hash) + char;\n    hash = hash & hash;\n  }\n  return hash.toString();\n}\n\n// 从 HTML 中提取关键内容\nfunction extractFeedbackText(html) {\n  const feedbackMatch = html.match(/Suggestions, opinions and questions:<\\/th><\\/tr><tr><td[^>]*>([^<]*)/);\n  const feedback = feedbackMatch ? feedbackMatch[1].trim() : '';\n  \n  const emailMatch = html.match(/Email:<\\/th><td[^>]*>([^<]*)/);\n  const email = emailMatch ? emailMatch[1].trim() : '';\n  \n  const userId2Match = html.match(/User ID 2:<\\/th><td[^>]*>([^<]*)/);\n  const userId2 = userId2Match ? userId2Match[1].trim() : '';\n  \n  return `${feedback}_${email}_${userId2}`;\n}\n\n// 第一轮：找出每个去重键对应的最晚时间记录\nfor (let i = 0; i < items.length; i++) {\n  const item = items[i];\n  const subject = item.json['邮件主题'] || '';\n  const html = item.json['Body Content'] || '';\n  const time = item.json['Received Time'] || '';\n  \n  const feedbackText = extractFeedbackText(html);\n  const dedupeKey = `${subject}_${simpleHash(feedbackText)}`;\n  \n  if (!seen.has(dedupeKey)) {\n    seen.set(dedupeKey, { index: i, time: time });\n  } else {\n    // 比较时间，保留更晚的\n    if (time > seen.get(dedupeKey).time) {\n      seen.set(dedupeKey, { index: i, time: time });\n    }\n  }\n}\n\n// 第二轮：收集去重后的记录\nconst keepIndexes = new Set([...seen.values()].map(v => v.index));\nfor (let i = 0; i < items.length; i++) {\n  if (keepIndexes.has(i)) {\n    unique.push(items[i]);\n  }\n}\n\nreturn unique;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        288,
+        272
+      ],
+      "id": "741e9aa4-1f94-41dd-9962-dcfd299e121a",
+      "name": "Basic Deduplication"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nconst groups = new Map();\n\nfor (const item of items) {\n  const data = item.json;\n  \n  // 直接使用已解析的字段\n  const userId2 = (data['User ID 2'] || '').trim().toLowerCase();\n  const email = (data['User Email'] || '').trim().toLowerCase();\n  const userName = (data['User Name'] || '').trim().toLowerCase();\n  const messageId = data['Message ID'] || String(Math.random());\n  \n  // 确定用户标识\n  let userId = '';\n  if (userId2 && userId2 !== 'null' && userId2.length > 0) {\n    userId = userId2;\n  } else if (email && email !== 'null' && email.length > 0) {\n    userId = email;\n  } else if (userName && userName !== 'null' && userName.length > 0) {\n    userId = userName;\n  } else {\n    userId = 'unknown_' + messageId;\n  }\n  \n  if (!groups.has(userId)) {\n    groups.set(userId, []);\n  }\n  groups.get(userId).push(data);\n}\n\nconst result = [];\nfor (const [userId, feedbacks] of groups) {\n  const isUnknown = userId.startsWith('unknown_');\n  \n  // 构建 LLM 输入文本\n  const llmInput = feedbacks.map((f, i) => \n    '[反馈' + (i + 1) + '] 时间: ' + f['Received Date'] + '\\n主题: ' + f['邮件主题'] + '\\n内容: ' + f['Original Feedback']\n  ).join('\\n\\n---\\n\\n');\n  \n  result.push({\n    json: {\n      userId: userId,\n      count: feedbacks.length,\n      needDedup: !isUnknown && feedbacks.length > 1,\n      feedbacks: feedbacks,\n      llmInput: llmInput\n    }\n  });\n}\n\nreturn result;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        976,
+        256
+      ],
+      "id": "c122e05b-9da6-4e8e-91a7-e7ea18a54335",
+      "name": "Group by User"
+    },
+    {
+      "parameters": {
+        "amount": 10
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2160,
+        720
+      ],
+      "id": "73ea6111-1fd5-490f-a05d-1fa3d516f844",
+      "name": "Wait1",
+      "webhookId": "YOUR_WEBHOOK_ID_5"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "a0325b1f-3e76-4955-9d19-4148bbc9d55b",
+              "leftValue": "={{ $json.needDedup }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "false",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1392,
+        384
+      ],
+      "id": "235ca2f6-1b28-4e79-9554-c1a1f9d5bde7",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "jsCode": "const group = $('If').item.json;\nconst response = $json;\n\nlet result = { isDuplicate: false, keepIndex: -1 };\n\ntry {\n  // Message a Model 节点的输出格式\n  let content = response.message?.content || response.content || response.text || '';\n  \n  // 如果 content 已经是对象，直接使用\n  if (typeof content === 'object') {\n    result = content;\n  } else if (typeof content === 'string') {\n    // 如果是字符串，提取 JSON\n    const jsonMatch = content.match(/\\{[\\s\\S]*\\}/);\n    if (jsonMatch) {\n      result = JSON.parse(jsonMatch[0]);\n    }\n  }\n} catch (e) {\n  // 解析失败，保留所有\n}\n\nconst feedbacks = group.feedbacks || [];\n\nif (result.isDuplicate && result.keepIndex >= 0 && result.keepIndex < feedbacks.length) {\n  const sorted = [...feedbacks].sort((a, b) => \n    (a['Received Date'] || '').localeCompare(b['Received Date'] || '')\n  );\n  return [{ json: sorted[result.keepIndex] }];\n} else {\n  return feedbacks.map(f => ({ json: f }));\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1856,
+        576
+      ],
+      "id": "f5f0f9c8-44cd-46b4-b74d-11ab546ac4b9",
+      "name": "Filter Kept Feedback"
+    },
+    {
+      "parameters": {
+        "jsCode": "const group = $json;\nreturn group.feedbacks.map(f => ({ json: f }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1824,
+        368
+      ],
+      "id": "e5bcaec5-977a-4b09-9dac-bbed2972581e",
+      "name": "Expand Single Feedback"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "Qwen/Qwen3-8B"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are a feedback deduplication expert. Determine if multiple feedbacks from the same user describe the same issue.\n\nCriteria:\n1. If multiple feedbacks describe the same core issue (even with different wording or spelling corrections), they are【Duplicate】\n2. If feedbacks describe completely different issues, they are【Not Duplicate】\n3. If content is empty, garbled, or meaningless, they are【Not Duplicate】\n\nUser ID: {{$json.userId}}\nFeedback count: {{$json.count}}\n\nFeedback content:\n{{$json.llmInput}}\n\n---\n\nOutput strictly in the following JSON format, no other content:\n{\"isDuplicate\": true or false, \"keepIndex\": number, \"reason\": \"Brief reason\"}\n\nField description:\n- isDuplicate: Whether it is duplicate feedback (true/false)\n- keepIndex: If duplicate, which one to keep (0-based index, usually the last/latest); if not duplicate, fill -1\n- reason: Brief reason for the judgment (within 20 characters)\n\nExample output:\n{\"isDuplicate\": true, \"keepIndex\": 1, \"reason\": \"Both feedbacks describe the same connection issue\"}\n{\"isDuplicate\": false, \"keepIndex\": -1, \"reason\": \"Feedbacks describe different feature issues\"}\n\n/no_think",
+              "role": "system"
+            }
+          ]
+        },
+        "jsonOutput": true,
+        "options": {
+          "temperature": 0.3
+        }
+      },
+      "id": "8dedfe0b-4eec-407c-8fd1-714da7d981cb",
+      "name": "Intent Deduplication",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1,
+      "position": [
+        1552,
+        544
+      ],
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "maxTries": 5,
+      "credentials": {
+        "openAiApi": {
+          "id": "YOUR_OPENAI_API_ID",
+          "name": "OpenAi account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1216,
+        256
+      ],
+      "id": "05e7e59a-9345-4634-b556-9849a7173963",
+      "name": "Loop Each Group"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const data = $input.item.json;\n\n// 获取 AI 分析结果\nlet aiResult = {};\n\n// AI 结果可能在 message.content 或 message_2.content 中\nif (data?.message?.content) {\n  aiResult = data.message.content;\n} else if (data?.message_2?.content) {\n  aiResult = data.message_2.content;\n}\n\n// 辅助函数：优先获取原字段，没有则获取带 _1 后缀的字段\nfunction getField(obj, fieldName, defaultValue) {\n  if (!obj) return defaultValue;\n  \n  // 优先尝试原字段名\n  let value = obj[fieldName];\n  if (value !== null && value !== undefined && value !== '' && value !== 'null') {\n    return value;\n  }\n  \n  // 尝试带 _1 后缀的字段\n  value = obj[fieldName + '_1'];\n  if (value !== null && value !== undefined && value !== '' && value !== 'null') {\n    return value;\n  }\n  \n  // 尝试带 _2 后缀的字段\n  value = obj[fieldName + '_2'];\n  if (value !== null && value !== undefined && value !== '' && value !== 'null') {\n    return value;\n  }\n  \n  return defaultValue;\n}\n\n// 合并输出\nconst mergedData = {\n  // ----- Original Email字段 -----\n  \"Received Date\": getField(data, 'Received Date', ''),\n  \"Original Email\": getField(data, 'Original Email', ''),\n  \"Email Subject\": getField(data, 'Email Subject', ''),\n  \"Original Feedback\": getField(data, 'Original Feedback', ''),\n  \"Feedback Category\": getField(data, 'Feedback Category', ''),\n  \"Feedback Type\": getField(data, 'Feedback Type', ''),\n  \"User Email\": getField(data, 'User Email', ''),\n  \"User ID 2\": getField(data, 'User ID 2', ''),\n  \"User Name\": getField(data, 'User Name', ''),\n  \"Country\": getField(data, 'Country', ''),\n  \"Region\": getField(data, 'Region', ''),\n  \"Device Model\": getField(data, 'Device Model', ''),\n  \"Hardware Version\": getField(data, 'Hardware Version', ''),\n  \"Firmware Version\": getField(data, 'Firmware Version', ''),\n  \"App Version\": getField(data, 'App Version', ''),\n  \"Mobile OS\": getField(data, 'Mobile OS', ''),\n  \"Phone Model\": getField(data, 'Phone Model', ''),\n  \"Message ID\": getField(data, 'Message ID', ''),\n  \"Row Number\": getField(data, 'Row Number', ''),\n  \"feedbackFormat\": getField(data, 'feedbackFormat', ''),\n\n  // ----- AI 分析字段 -----\n  \"Issue Summary\": aiResult.summary || '无法识别',\n  \"Translated Text\": aiResult.translatedFeedback || '',\n  \"Sentiment\": aiResult.sentiment || 'Neutral',\n  \"Is Urgent\": aiResult.isUrgent === true,\n  \"Feedback Type详情\": aiResult.feedbackCategory || '其他',\n};\n\nreturn mergedData;"
+      },
+      "id": "18c18a4d-7844-45c0-96f9-0316135531d3",
+      "name": "Parse AI Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3088,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "=deepseek-ai/DeepSeek-R1-0528-Qwen3-8B",
+          "mode": "id"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=# Role\nYou are a senior product operations expert for a SaaS application. You excel at identifying the essence of issues, sentiment trends, and urgency levels from multi-language user feedback, outputting structured data for product iteration reference. You have keen data insights and can identify key trends, potential bugs, and high-value user needs from massive amounts of user feedback.\n\n# Product Context\nYour app is a core cloud management platform. Users are extremely sensitive to【connection stability, loading speed, and configuration simplicity】.\nCurrent focus areas:\n-【Basic Experience】: Login/cloud account connection, app startup and loading speed, crash/flashback\n-【Core Features】: WiFi configuration, device management, topology display\n-【Business Scenarios】: Multi-site management, rapid deployment\n\n# Analysis Tasks\nFor each user feedback:\n1.【Summary】: One-sentence summary of core feedback (15-30 characters in Simplified Chinese)\n2.【Translation】: Translate original feedback to Simplified Chinese\n3.【Sentiment Analysis】: Judge user's core sentiment\n4.【Feature Classification】: Determine which feature module the feedback involves\n5.【Urgency】: Judge if urgent processing is needed\n\n# Labeling System\n\n## Sentiment Labels (sentiment, 4 options)\n- Positive: Clear praise, satisfaction\n- Negative: Clear complaints, dissatisfaction\n- Neutral: Neutral factual statements, questions\n- Urgent: Strong negative emotions, problem seriously affects core functionality\n\n## Feature Labels (feedbackCategory, 13 options, fill \"N/A\" for positive feedback)\n- WiFi Configuration: SSID, password, band selection, channel adjustment, guest network, VLAN\n- Account/Login: Login, registration, password reset, 2FA, account security\n- Connection/Loading: Controller connection, remote access, slow loading, timeout\n- Voucher: Voucher creation, batch generation, validity, printing\n- Device Management: Device adding/deleting, configuration, firmware upgrade\n- Dashboard/UI: Interface display, data statistics, visual design\n- Notification: Notification push, alert settings\n- Network Topology: Topology display, network structure visualization\n- Client Management: Client management, blacklist, speed limit, MAC filtering\n- Settings: App settings, preference configuration, language, theme\n- Multi-site: Multi-site management, site switching\n- Other: Cannot be categorized\n- suggestion: Improvement suggestions\n- N/A: Positive feedback or no specific functionality\n\n## Urgency (isUrgent)\nJudgment criteria:\n- true: Sentiment is Urgent or Frustrated, or involves:\n  - Crash/flashback/unable to start\n  - Completely unable to login or connect\n  - Core features completely unavailable\n  - Data loss or security issues\n- false: Other situations\n\n# Output Requirements\n1.【Translation】: Must translate to【Simplified Chinese】\n2.【Summary】: Summarize core issue, no more than 20 characters in Simplified Chinese\n3.【Format】: Only output valid JSON matching the Schema, no other text, explanations or markdown code blocks\n4.【Important】: Output result directly, do not show thinking process\n\n# Exception Handling\n- If feedback content is empty, garbled, or unintelligible:\n  - summary: \"Unable to identify\"\n  - translated_content: Original text or empty string\n  - sentiment: \"Neutral\"\n  - issue_type: \"Other\"\n  - is_urgent: false\n- If original text is already in Simplified Chinese, translated_content copies original text\n- If unable to clearly judge sentiment or classification, prioritize Neutral and \"Other\"",
+              "role": "system"
+            },
+            {
+              "content": "=Please analyze the following user feedback email:\n\n---\nOriginal feedback content:\n{{ $json['Original Feedback'] }}\n---\n\nOutput strictly in the following JSON format, no other text:\n{\n  \"summary\": \"Summary (15-30 characters in Simplified Chinese, summarize core issue)\",\n  \"translatedFeedback\": \"Simplified Chinese translation of original feedback (preserve meaning)\",\n  \"sentiment\": \"Sentiment label (Positive/Negative/Neutral/Urgent/Frustrated)\",\n  \"feedbackCategory\": \"Feature classification\",\n  \"isUrgent\": true or false\n}\n\n**Output Requirements (Important):**\n1. Output JSON directly, do not show thinking process\n2. Output only the JSON shown above, no other text\n3. /no_think",
+              "role": "user"
+            }
+          ]
+        },
+        "jsonOutput": true,
+        "options": {
+          "temperature": 0.3
+        }
+      },
+      "id": "9a1c3f8c-e288-450b-9c78-6480648dde3d",
+      "name": "Intent Analysis",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1,
+      "position": [
+        2688,
+        432
+      ],
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "maxTries": 5,
+      "credentials": {
+        "openAiApi": {
+          "id": "YOUR_OPENAI_API_ID",
+          "name": "OpenAi account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {
+          "clashHandling": {
+            "values": {
+              "resolveClash": "addSuffix"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        2896,
+        400
+      ],
+      "id": "50b75b6c-eb9c-48f7-bdb4-3c76b043cc82",
+      "name": "Merge"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Write to Notion": {
+      "main": [
+        [
+          {
+            "node": "IF：Is Urgent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF：Is Urgent": {
+      "main": [
+        []
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Process Each Email - AI Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Google Sheet Data": {
+      "main": [
+        [
+          {
+            "node": "Remove Processed Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily Schedule": {
+      "main": [
+        [
+          {
+            "node": "Fetch Google Sheet Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Remove Processed Data": {
+      "main": [
+        [
+          {
+            "node": "Basic Deduplication",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Each Email - AI Analysis": {
+      "main": [
+        [
+          {
+            "node": "Write to Notion",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Intent Analysis",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Email Content": {
+      "main": [
+        [
+          {
+            "node": "Batch Extract",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Batch Extract": {
+      "main": [
+        [
+          {
+            "node": "Group by User",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Parse Email Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic Deduplication": {
+      "main": [
+        [
+          {
+            "node": "Batch Extract",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Group by User": {
+      "main": [
+        [
+          {
+            "node": "Loop Each Group",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait1": {
+      "main": [
+        [
+          {
+            "node": "Loop Each Group",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Expand Single Feedback",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Intent Deduplication",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Kept Feedback": {
+      "main": [
+        [
+          {
+            "node": "Wait1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Expand Single Feedback": {
+      "main": [
+        [
+          {
+            "node": "Wait1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Intent Deduplication": {
+      "main": [
+        [
+          {
+            "node": "Filter Kept Feedback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Each Group": {
+      "main": [
+        [
+          {
+            "node": "Process Each Email - AI Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Results": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Intent Analysis": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "YOUR_VERSION_ID",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "YOUR_INSTANCE_ID"
+  },
+  "id": "YOUR_WORKFLOW_ID",
+  "tags": []
+}
